@@ -26,4 +26,4 @@ def index():
             count = cur.fetchone()[0]
     finally:
         conn.close()
-    return f"Hello from Docker, Лавренов\n"
+    return f"Hello from Docker, Лавренов! Visits: {count}\n"
