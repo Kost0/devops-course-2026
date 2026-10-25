@@ -41,6 +41,19 @@ check "Политика по умолчанию для входящего тра
 echo "[3] Учётные записи"
 awk -F: '$3>=1000 && $3<65534 {printf "%s (uid=%s)\n", $1, $3}' /etc/passwd
 
+echo "[4] Веб-сервер"
+sudo nginx -t >/dev/null 2>&1
+check "Конфигурация Nginx корректна" "0" "$?"
+
+CERT_CHECK=$(sudo openssl x509 -checkend 2592000 -noout -in /etc/ssl/certs/devops.crt 2>/dev/null || echo "expired")
+check "Сертификат действителен более 30 дней" "Certificate will not expire" "$CERT_CHECK"
+
+WW_FILES=$(sudo find /var/www/devops-site -perm -o+w 2>/dev/null)
+check "Нет файлов, доступных для записи всем" "" "$WW_FILES"
+
+KEY_PERMS=$(sudo stat -c '%a' /etc/ssl/private/devops.key 2>/dev/null || echo "missing")
+check "Права закрытого ключа равны 600" "600" "$KEY_PERMS"
+
 echo "Пройдено: $PASS, не пройдено: $FAIL"
 
 [[ $FAIL -eq 0 ]] && exit 0 || exit 1
