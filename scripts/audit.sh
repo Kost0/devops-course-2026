@@ -43,4 +43,31 @@ awk -F: '$3>=1000 && $3<65534 {printf "%s (uid=%s)\n", $1, $3}' /etc/passwd
 
 echo "Пройдено: $PASS, не пройдено: $FAIL"
 
+echo "[4] Веб-сервер"
+sudo nginx -t >/dev/null 2>&1
+check "Конфигурация Nginx корректна" "0" "$?"
+
+CERT_CHECK=$(sudo openssl x509 -checkend 2592000 -noout -in /etc/ssl/certs/devops.crt 2>/dev/null || echo "expired")
+check "Сертификат действителен более 30 дней" "Certificate will not expire" "$CERT_CHECK"
+
+WW_FILES=$(sudo find /var/www/devops-site -perm -o+w 2>/dev/null)
+check "Нет файлов, доступных для записи всем" "" "$WW_FILES"
+
+KEY_PERMS=$(sudo stat -c '%a' /etc/ssl/private/devops.key 2>/dev/null || echo "missing")
+check "Права закрытого ключа равны 600" "600" "$KEY_PERMS"
+
+echo "[5] Контейнеризация"
+
+DOCKER_STATUS=$(systemctl is-active docker 2>/dev/null || echo "inactive")
+check "Служба Docker активна" "active" "$DOCKER_STATUS"
+
+DB_HEALTH=$(docker inspect -f '{{.State.Health.Status}}' app-db-1 2>/dev/null || echo "missing")
+check "Контейнер СУБД находится в состоянии healthy" "healthy" "$DB_HEALTH"
+
+EXTERNAL_PORTS=$(sudo ss -tln | awk '$4 ~ /:(5000|5432)$/' | grep -v '127.0.0.1' || true)
+check "Порты 5000 и 5432 не прослушиваются извне" "" "$EXTERNAL_PORTS"
+
+ENV_PERMS=$(stat -c '%a' ~/app/.env 2>/dev/null || echo "missing")
+check "Права файла .env равны 600" "600" "$ENV_PERMS"
+
 [[ $FAIL -eq 0 ]] && exit 0 || exit 1
